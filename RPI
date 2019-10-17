@@ -1,0 +1,57 @@
+import pandas as pd
+import numpy as np
+
+raw_content = pd.read_csv("WNCAATourneyCompactResults.csv")
+
+num_record = len(raw_content)
+me2opponent = {}
+for i in range(num_record):
+    me = raw_content.at[i, "WTeamID"]
+    opponent = raw_content.at[i, "LTeamID"]
+    if me not in me2opponent:
+        me2opponent[me] = set()
+    me2opponent[me].add(opponent)
+    if opponent not in me2opponent:
+        me2opponent[opponent] = set()
+    me2opponent[opponent].add(me)
+
+wp = {}
+owp = {}
+oowp = {}
+
+all_teams = set(raw_content["WTeamID"]).union(set(raw_content["LTeamID"]))
+
+# calculate wp
+for team in all_teams:
+    num_win = len(raw_content.loc[raw_content["WTeamID"] == team])
+    num_lose = len(raw_content.loc[raw_content["LTeamID"] == team])
+    wp[team] = num_win / (num_lose + num_win)
+
+# calculate owp
+for me, opponents in me2opponent.items():
+    num_opponent = len(opponents)
+    total_opp_wp = sum([wp[opponent]  for opponent in opponents])
+    owp[me] = total_opp_wp / num_opponent
+
+# calculate oowp
+for me, opponents in me2opponent.items():
+    num_sub_opponent = 0
+    total_sub_opp_wp = 0
+    for opponent in opponents:
+        sub_opponents = me2opponent[opponent]
+        num_sub_opponent += len(sub_opponents)
+        total_sub_opp_wp += sum([wp[sub_opponent] for sub_opponent in sub_opponents])
+    oowp[me] = total_sub_opp_wp / num_sub_opponent
+
+rpi = {}
+# calculate rpi
+for me, wp_val in wp.items():
+    rpi[me] = (0.5 * wp_val + 0.25 * owp[me] + 0.25 * oowp[me])
+# write content into csv file
+
+import csv
+with open("rpi.csv", "w") as csvfile:
+    employee_writer = csv.writer(csvfile, delimiter=',')
+    employee_writer.writerow(['TeamID', 'RPI', 'WP', "OAWP", "OOAWP"])
+    for team in all_teams:
+        employee_writer.writerow([team, rpi[team], wp[team], owp[team], oowp[team]])
